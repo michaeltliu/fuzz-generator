@@ -5,17 +5,32 @@ import random
 
 app = Flask(__name__)
 probs = dict()
-probsInited = False
+probsInited = {0 : False}       # Janky fix, global state is not preserved if I just use a boolean
 
 @app.route('/')
 def returnFuzz():
-    if not probsInited:
+    if not probsInited[0]:
         directory = app.config['DIRECTORY']
         initProbabilities(directory)
 
     fuzz = ""
 
-    return probs
+    print("Generating fuzz")
+
+    d = dict(probs[""])
+    d.pop("count")
+    char = random.choices(list(d.keys()), weights = list(d.values()))
+    if char[0] == "EOF":
+        return fuzz
+    fuzz += char[0]
+
+    while True:
+        d = dict(probs[fuzz[-1]])
+        d.pop("count")
+        char = random.choices(list(d.keys()), weights = list(d.values()))
+        if char[0] == "EOF":
+            return fuzz
+        fuzz += char[0]
         
 # For every unique character to appear in the corpus (specified by param "directory"), 
 # this returns a map of any character that has succeeded it along with its probability
@@ -46,26 +61,18 @@ def initProbabilities(directory):
 
         updateProbabilitiesWithString(s)
 
-    # Normalizes
-    for key in probs:
-        m = probs[key]
-        count = m["count"]
-        for subkey in m:
-            m[subkey] = m[subkey] / count
-    
-    probsInited = True
+    probsInited[0] = True
 
     return probs
 
 @app.route('/live-update')
 def liveUpdate():
 
-    text = request.args.get("text")
+    text = request.args.get("text", "")
     if len(text) == 0:
-        return "Error: Training text has length 0"
+        return "Error: Training text is missing or has length 0"
 
     updateProbabilitiesWithString(text)
-    # TODO: Renormalize probabilities after udpate
     return "Your training text has been successfully added. Return to the home page to view a new sample fuzz."
 
 def updateProbabilitiesWithString(s):
@@ -90,20 +97,29 @@ def updateProbabilitiesWithString(s):
         currProbs[s[-1]] = temp
     temp.update({"EOF" : temp.get("EOF", 0) + 1})
 
-    # Normalizes weights to sum to 1
     for key in currProbs:
+        # Normalizes weights to sum to 1
         m = currProbs[key]
         s = sum(m.values())
         for subkey in m:
             m[subkey] = m[subkey] / s
         
         # Adds currProbs into probs
+        # Kind of a crap fest of code but this simplifies other areas
         temp = probs.get(key, dict())
         if len(temp) == 0:
             probs[key] = temp
-        for subkey in currProbs[key]:
-            temp.update({subkey : temp.get(subkey, 0) + currProbs[key][subkey]})
         temp.update({"count" : temp.get("count", 0) + 1})
+        for subkey in currProbs[key]:
+            temp.update({subkey : (temp.get(subkey, 0) * (temp["count"] - 1) + currProbs[key][subkey]) \
+                / temp["count"]})
+        for subkey in temp:
+            if subkey not in currProbs[key] and subkey != "count":
+                temp.update({subkey : temp[subkey] * (temp["count"] - 1) / temp["count"]})
+
+@app.route('/view-probs')
+def viewProbs():
+    return probs
 
 if __name__ == '__main__':
     app.config['DIRECTORY'] = sys.argv[1]
