@@ -9,11 +9,14 @@ probsInited = {0 : False}       # Janky fix, global state is not preserved if I 
 
 @app.route('/')
 def returnFuzz():
-    if not probsInited[0]:
+    init = request.args.get("init", "")
+    if not probsInited[0] and init != "false":
         directory = app.config['DIRECTORY']
         initProbabilities(directory)
 
     fuzz = ""
+
+    file = open("out/fuzzOutput.txt", "w+", errors = "surrogateescape")
 
     print("Generating fuzz")
 
@@ -21,6 +24,7 @@ def returnFuzz():
     d.pop("count")
     char = random.choices(list(d.keys()), weights = list(d.values()))
     if char[0] == "EOF":
+        file.close()
         return fuzz
     fuzz += char[0]
 
@@ -29,6 +33,8 @@ def returnFuzz():
         d.pop("count")
         char = random.choices(list(d.keys()), weights = list(d.values()))
         if char[0] == "EOF":
+            file.write(fuzz)
+            file.close()
             return fuzz
         fuzz += char[0]
         
@@ -67,7 +73,6 @@ def initProbabilities(directory):
 
 @app.route('/live-update')
 def liveUpdate():
-
     text = request.args.get("text", "")
     if len(text) == 0:
         return "Error: Training text is missing or has length 0"
