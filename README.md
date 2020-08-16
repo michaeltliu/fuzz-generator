@@ -7,8 +7,8 @@ Generates fuzzing test inputs using a Markov chain model
 
 ## To run (Windows):
 1. Get a virtual environment running with Flask installed
-2. Run `export FLASK_APP=generator.py`
-3. Run `python generator.py corpus` or `python generator.py mini_corpus`
+2. Run `set FLASK_APP=generator.py` (`export` for Mac)
+3. Run `python generator.py corpus` or `python generator.py mini-corpus`
 4. Open/refresh the appropriate locally hosted port and the code will start running.
 
 ## URL routes:
